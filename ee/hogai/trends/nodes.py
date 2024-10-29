@@ -125,18 +125,22 @@ class CreateTrendsPlanNode(AssistantNode):
 
     @property
     def _model(self) -> ChatOpenAI:
-        return ChatOpenAI(model="gpt-4o", temperature=0.7, streaming=True)
+        return ChatOpenAI(model="gpt-4o", temperature=0.2, streaming=True)
 
     @cached_property
     def _events_prompt(self) -> str:
         response = TeamTaxonomyQueryRunner(TeamTaxonomyQuery(), self._team).run(
-            ExecutionMode.RECENT_CACHE_CALCULATE_BLOCKING_IF_STALE
+            ExecutionMode.RECENT_CACHE_CALCULATE_ASYNC_IF_STALE_AND_BLOCKING_ON_MISS
         )
 
         if not isinstance(response, CachedTeamTaxonomyQueryResponse):
             raise ValueError("Failed to generate events prompt.")
 
-        events = [item.event for item in response.results]
+        events: list[str] = []
+        for item in response.results:
+            if len(response.results) > 25 and item.count <= 3:
+                continue
+            events.append(item.event)
 
         # default for null in the
         tags: list[str] = ["all events"]
@@ -279,7 +283,7 @@ class GenerateTrendsNode(AssistantNode):
 
     @property
     def _model(self):
-        return ChatOpenAI(model="gpt-4o", temperature=0.7, streaming=True).with_structured_output(
+        return ChatOpenAI(model="gpt-4o", temperature=0.2, streaming=True).with_structured_output(
             GenerateTrendTool().schema,
             method="function_calling",
             include_raw=False,
